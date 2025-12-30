@@ -338,6 +338,7 @@ public class RedissonLock extends RedissonBaseLock {
     }
 
     protected RFuture<Boolean> unlockInnerAsync(long threadId, String requestId, int timeout) {
+        String command = getSubscribeService().getPublishCommand();
         return evalWriteSyncedNoRetryAsync(getRawName(), LongCodec.INSTANCE, RedisCommands.EVAL_BOOLEAN,
                               "local val = redis.call('get', KEYS[3]); " +
                                     "if val ~= false then " +
@@ -350,17 +351,17 @@ public class RedissonLock extends RedissonBaseLock {
                                     "local counter = redis.call('hincrby', KEYS[1], ARGV[3], -1); " +
                                     "if (counter > 0) then " +
                                         "redis.call('pexpire', KEYS[1], ARGV[2]); " +
-                                        "redis.call('set', KEYS[3], 0, 'px', ARGV[5]); " +
+                                        "redis.call('set', KEYS[3], 0, 'px', ARGV[4]); " +
                                         "return 0; " +
                                     "else " +
                                         "redis.call('del', KEYS[1]); " +
-                                        "redis.call(ARGV[4], KEYS[2], ARGV[1]); " +
-                                        "redis.call('set', KEYS[3], 1, 'px', ARGV[5]); " +
+                                        "redis.call("+command+", KEYS[2], ARGV[1]); " +
+                                        "redis.call('set', KEYS[3], 1, 'px', ARGV[4]); " +
                                         "return 1; " +
                                     "end; ",
                                 Arrays.asList(getRawName(), getChannelName(), getUnlockLatchName(requestId)),
                                 LockPubSub.UNLOCK_MESSAGE, internalLockLeaseTime,
-                                getLockName(threadId), getSubscribeService().getPublishCommand(), timeout);
+                                getLockName(threadId),timeout);
     }
 
     @Override
